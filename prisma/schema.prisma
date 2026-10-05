@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  password     String
+  role         String
+  department   String
+  avatarColor  String   @default("#6366f1")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  createdAssessments   Assessment[] @relation("CreatedBy")
+  assignedAssessments  Assessment[] @relation("Assignee")
+  risks                Risk[]       @relation("RiskOwner")
+  activities           ActivityLog[]
+  notifications        Notification[]
+}
+
+model Assessment {
+  id              String   @id @default(cuid())
+  title           String
+  templateId      String
+  regulation      String
+  status          String
+  stakeholder     String
+  department      String
+  dueDate         String
+  workflowStage   Int      @default(1)
+  risksIdentified Int      @default(0)
+  risksTotal      Int      @default(0)
+  notes           String?
+  responses       String   @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Re-review cycle tracking: closed assessments must be revisited
+  // periodically because processing activities change over time.
+  reviewCycle     Int       @default(1)
+  lastReviewedAt  DateTime?
+  reviewDueDate   String?
+  completedAt     DateTime?
+
+  createdBy  String
+  assigneeId String
+
+  createdByUser  User     @relation("CreatedBy", fields: [createdBy], references: [id])
+  assignee       User     @relation("Assignee", fields: [assigneeId], references: [id])
+  risks          Risk[]
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Risk {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  likelihood   Int
+  impact       Int
+  mitigation   String
+  status       String   @default("open")
+  createdAt    DateTime @default(now())
+
+  ownerId      String
+  assessmentId String?
+
+  owner          User        @relation("RiskOwner", fields: [ownerId], references: [id])
+  assessment     Assessment? @relation(fields: [assessmentId], references: [id])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  action     String
+  entity     String
+  entityType String
+  details    String?
+  timestamp  DateTime @default(now())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id])
+}
+
+/// In-app alerts for due dates, overdue work, assignments and approvals.
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  kind      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+/// Tracks failed sign-in attempts so brute-force protection survives
+/// serverless cold starts and multiple instances.
+model LoginAttempt {
+  key         String    @id
+  count       Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
