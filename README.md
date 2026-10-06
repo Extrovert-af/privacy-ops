@@ -15,18 +15,7 @@ npm run db:seed           # load the demo users and sample data
 npm run dev
 ```
 
-Open <http://localhost:3000> and sign in with any demo account:
-
-| Email | Password | Role |
-| --- | --- | --- |
-| sarah@privacyops.com | password123 | admin |
-| marcus@privacyops.com | password123 | privacy_officer |
-| priya@privacyops.com | password123 | reviewer |
-| tom@privacyops.com | password123 | assessor |
-| emma@privacyops.com | password123 | viewer |
-
-> These are throwaway demo credentials. Change or remove them before this app
-> is reachable by anyone you do not know.
+Open <http://localhost:3000> and sign in.
 
 ## Roles
 
