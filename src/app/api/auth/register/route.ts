@@ -8,7 +8,7 @@ import {
   password as parsePassword,
 } from "@/lib/validation";
 import { clientIp, checkLoginAllowed, recordLoginFailure } from "@/lib/rate-limit";
-import { emailConfigured, emailConfigHint } from "@/lib/email";
+import { emailConfigured } from "@/lib/email";
 import { issueVerificationCode, sendVerificationEmail } from "@/lib/verification";
 
 export async function POST(req: Request) {
@@ -22,16 +22,12 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!emailConfigured()) {
-      return NextResponse.json(
-        {
-          error: `Email verification is not configured yet, so sign-ups are disabled. ${emailConfigHint()}`,
-        },
-        { status: 503 }
-      );
-    }
-
     const body = await req.json();
+
+    // When email sending isn't configured, accounts are created already
+    // verified so sign-ups keep working. Verification switches on as soon
+    // as BREVO_API_KEY and BREVO_SENDER_EMAIL are both present.
+    const verificationEnabled = emailConfigured();
 
     const name = str(body.name, "Name", { required: true, max: 120 });
     const email = parseEmail(body.email);
@@ -57,21 +53,23 @@ export async function POST(req: Request) {
         password: hashedPassword,
         role: "viewer",
         department,
-        emailVerified: false,
+        emailVerified: !verificationEnabled,
       },
     });
 
-    const code = await issueVerificationCode(user.id);
-    const sent = await sendVerificationEmail(email, name, code);
+    if (verificationEnabled) {
+      const code = await issueVerificationCode(user.id);
+      const sent = await sendVerificationEmail(email, name, code);
 
-    if (!sent.ok) {
-      // Leave nothing behind that cannot be signed in to.
-      await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
-      console.error("Verification email failed:", sent.reason);
-      return NextResponse.json(
-        { error: "We could not send the verification email. Please try again later." },
-        { status: 502 }
-      );
+      if (!sent.ok) {
+        // Leave nothing behind that cannot be signed in to.
+        await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
+        console.error("Verification email failed:", sent.reason);
+        return NextResponse.json(
+          { error: "We could not send the verification email. Please try again later." },
+          { status: 502 }
+        );
+      }
     }
 
     await prisma.activityLog.create({
@@ -80,13 +78,20 @@ export async function POST(req: Request) {
         entity: email,
         entityType: "auth",
         userId: user.id,
-        details: "Self-service signup (viewer) — awaiting email verification",
+        details: verificationEnabled
+          ? "Self-service signup (viewer) — awaiting email verification"
+          : "Self-service signup (viewer)",
       },
     });
 
     await recordLoginFailure(ipKey);
 
-    return NextResponse.json({ success: true, pendingVerification: email }, { status: 201 });
+    return NextResponse.json(
+      verificationEnabled
+        ? { success: true, pendingVerification: email }
+        : { success: true },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof ValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

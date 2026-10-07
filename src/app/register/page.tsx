@@ -34,7 +34,12 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push(`/verify?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+      // Only sent to the verification step when a code was actually emailed.
+      if (data.pendingVerification) {
+        router.push(`/verify?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+      } else {
+        router.push("/login");
+      }
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
