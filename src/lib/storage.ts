@@ -150,7 +150,9 @@ deleteAssessment: (id: string) => request<void>(`/api/assessments/${id}`, { meth
       body: JSON.stringify(updates),
     }),
 
-  changePassword: (id: string, currentPassword: string, newPassword: string) =>
+  // currentPassword is required for self-service changes and omitted when an
+  // admin resets another account.
+  changePassword: (id: string, currentPassword: string | undefined, newPassword: string) =>
     request<{ success: boolean }>(`/api/users/${id}/password`, {
       method: "PUT",
       body: JSON.stringify({ currentPassword, newPassword }),

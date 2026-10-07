@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Plus, Mail, UserPlus, UserX } from "lucide-react";
+import { Plus, Mail, UserPlus, UserX, KeyRound } from "lucide-react";
 import { api } from "@/lib/storage";
 import { Card, Badge, Button, Modal, PageHeader } from "@/components/ui";
 import type { User, UserRole } from "@/lib/types";
@@ -45,6 +45,12 @@ export default function UsersPage() {
   const [adding, setAdding] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState("");
+
   const router = useRouter();
   const { data: session, status } = useSession();
   const isAdmin = status === "authenticated" && session?.user?.role === "admin";
@@ -85,6 +91,37 @@ export default function UsersPage() {
   const toggleActive = async (user: User) => {
     const updated = await api.updateUser(user.id, { active: !user.active });
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+  };
+
+  const openReset = (user: User) => {
+    setResetTarget(user);
+    setResetPassword("");
+    setResetConfirm("");
+    setResetError("");
+  };
+
+  const handleReset = async () => {
+    if (!resetTarget) return;
+
+    if (resetPassword.length < 8) {
+      setResetError("New password must be at least 8 characters.");
+      return;
+    }
+    if (resetPassword !== resetConfirm) {
+      setResetError("New passwords do not match.");
+      return;
+    }
+
+    setResetting(true);
+    setResetError("");
+    try {
+      await api.changePassword(resetTarget.id, undefined, resetPassword);
+      setResetTarget(null);
+    } catch (e) {
+      setResetError(e instanceof Error ? e.message : "Could not reset password.");
+    } finally {
+      setResetting(false);
+    }
   };
 
   const getInitials = (name: string) =>
@@ -142,6 +179,13 @@ export default function UsersPage() {
               </div>
               <div className="flex items-center gap-3">
                 <Badge color={roleColors[user.role]}>{roleLabels[user.role]}</Badge>
+                <button
+                  onClick={() => openReset(user)}
+                  className="rounded p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950"
+                  title="Reset password"
+                >
+                  <KeyRound className="h-4 w-4" />
+                </button>
                 <button
                   onClick={() => toggleActive(user)}
                   className={`rounded p-1.5 transition-colors ${
@@ -217,6 +261,56 @@ export default function UsersPage() {
           )}
           <Button className="w-full" onClick={handleAddUser} disabled={!form.name.trim() || !form.email.trim() || adding}>
             <UserPlus className="h-4 w-4" /> {adding ? "Adding..." : "Add User"}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Reset password modal */}
+      <Modal
+        open={resetTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setResetTarget(null);
+        }}
+        title="Reset Password"
+        description={resetTarget ? `Set a new password for ${resetTarget.name}` : undefined}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">New Password</label>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={resetPassword}
+              onChange={(e) => setResetPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Confirm New Password</label>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={resetConfirm}
+              onChange={(e) => setResetConfirm(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+            />
+          </div>
+          <p className="text-xs text-slate-400">
+            They will need this new password to sign in. The change is recorded
+            in the activity log.
+          </p>
+          {resetError && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/20 dark:text-red-400">
+              {resetError}
+            </div>
+          )}
+          <Button
+            className="w-full"
+            onClick={handleReset}
+            disabled={!resetPassword || !resetConfirm || resetting}
+          >
+            <KeyRound className="h-4 w-4" /> {resetting ? "Resetting..." : "Reset Password"}
           </Button>
         </div>
       </Modal>

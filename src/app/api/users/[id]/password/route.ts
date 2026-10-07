@@ -17,34 +17,32 @@ export async function PUT(request: Request, { params }: Params) {
 
   const { id } = await params;
 
-  // Passwords are self-service only. Admin resets are deliberately not
-  // allowed here so an admin account cannot silently take over another.
-  if (session.user.id !== id) {
+  const isSelf = session.user.id === id;
+  const isAdmin = session.user.role === "admin";
+
+  // Self-service for your own password; admins may reset anyone else's,
+  // which is the only recovery path when an account is locked out.
+  if (!isSelf && !isAdmin) {
     return NextResponse.json(
       { error: "You can only change your own password" },
       { status: 403 }
     );
   }
 
-  const rateKey = `password:${id}`;
-  if (!(await checkLoginAllowed(rateKey))) {
-    return NextResponse.json(
-      { error: "Too many attempts. Try again in a few minutes." },
-      { status: 429 }
-    );
-  }
-
-  let currentPassword: string;
+  let currentPassword: string | undefined;
   let newPassword: string;
 
   try {
     const body = await request.json();
 
-    if (typeof body.currentPassword !== "string" || !body.currentPassword) {
+    if (typeof body.currentPassword === "string" && body.currentPassword) {
+      currentPassword = body.currentPassword;
+    }
+
+    if (isSelf && !currentPassword) {
       throw new ValidationError("Enter your current password");
     }
 
-    currentPassword = body.currentPassword;
     newPassword = parsePassword(body.newPassword);
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -56,28 +54,46 @@ export async function PUT(request: Request, { params }: Params) {
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const matches = await bcrypt.compare(currentPassword, user.password);
-  if (!matches) {
-    await recordLoginFailure(rateKey);
-    return NextResponse.json(
-      { error: "Your current password is incorrect" },
-      { status: 400 }
-    );
+  // Rate limit only the guessable path — an admin reset has no secret to
+  // brute-force, and keying it on the target would lock that user out of
+  // changing their own password.
+  if (isSelf) {
+    const rateKey = `password:${id}`;
+    if (!(await checkLoginAllowed(rateKey))) {
+      return NextResponse.json(
+        { error: "Too many attempts. Try again in a few minutes." },
+        { status: 429 }
+      );
+    }
+
+    const matches = await bcrypt.compare(currentPassword!, user.password);
+    if (!matches) {
+      await recordLoginFailure(rateKey);
+      return NextResponse.json(
+        { error: "Your current password is incorrect" },
+        { status: 400 }
+      );
+    }
+
+    if (currentPassword === newPassword) {
+      return NextResponse.json(
+        { error: "Choose a password different from your current one" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { password: await bcrypt.hash(newPassword, 12) },
+    });
+
+    await clearLoginFailures(rateKey);
+  } else {
+    await prisma.user.update({
+      where: { id },
+      data: { password: await bcrypt.hash(newPassword, 12) },
+    });
   }
-
-  if (currentPassword === newPassword) {
-    return NextResponse.json(
-      { error: "Choose a password different from your current one" },
-      { status: 400 }
-    );
-  }
-
-  await prisma.user.update({
-    where: { id },
-    data: { password: await bcrypt.hash(newPassword, 12) },
-  });
-
-  await clearLoginFailures(rateKey);
 
   await prisma.activityLog.create({
     data: {
@@ -85,7 +101,7 @@ export async function PUT(request: Request, { params }: Params) {
       entity: user.email,
       entityType: "auth",
       userId: session.user.id,
-      details: "Self-service password change",
+      details: isSelf ? "Self-service password change" : "Reset by admin",
     },
   });
 
