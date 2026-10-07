@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Plus, Mail, UserPlus, UserX } from "lucide-react";
 import { api } from "@/lib/storage";
 import { Card, Badge, Button, Modal, PageHeader } from "@/components/ui";
@@ -43,9 +45,21 @@ export default function UsersPage() {
   const [adding, setAdding] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const router = useRouter();
+  const { data: session, status } = useSession();
+  const isAdmin = status === "authenticated" && session?.user?.role === "admin";
+
   useEffect(() => {
-    api.getUsers().then((u) => setUsers(u)).catch(() => {});
-  }, []);
+    if (status === "unauthenticated") {
+      router.replace("/login");
+    } else if (status === "authenticated" && session?.user?.role !== "admin") {
+      router.replace("/dashboard");
+    }
+  }, [status, session, router]);
+
+  useEffect(() => {
+    if (isAdmin) api.getUsers().then((u) => setUsers(u)).catch(() => {});
+  }, [isAdmin]);
 
   const handleAddUser = async () => {
     if (!form.name.trim() || !form.email.trim()) return;
@@ -75,6 +89,8 @@ export default function UsersPage() {
 
   const getInitials = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+
+  if (!isAdmin) return null;
 
   return (
     <div>

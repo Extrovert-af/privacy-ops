@@ -24,7 +24,7 @@ const navItems = [
   { href: "/risks", label: "Risk Register", icon: ShieldAlert },
   { href: "/compliance", label: "Compliance", icon: BarChart3 },
   { href: "/documents", label: "Documents", icon: FileText },
-  { href: "/users", label: "Users & Roles", icon: Users },
+  { href: "/users", label: "Users & Roles", icon: Users, adminOnly: true },
 ];
 
 export function Sidebar() {
@@ -41,6 +41,10 @@ export function Sidebar() {
     ? user.role.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
     : "Member";
 
+  const visibleNavItems = navItems.filter(
+    (item) => !item.adminOnly || user?.role === "admin"
+  );
+
   return (
     <aside className="group fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-slate-900 text-slate-100">
       <div className="flex h-16 items-center gap-3 border-b border-slate-800 px-6">
@@ -54,7 +58,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
           return (

@@ -1,4 +1,4 @@
-export const VALID_ROLES = ["viewer", "assessor", "reviewer", "officer", "admin"] as const;
+export const VALID_ROLES = ["viewer", "assessor", "reviewer", "privacy_officer", "admin"] as const;
 export const VALID_STATUSES = ["draft", "in_review", "approved", "rejected", "closed"] as const;
 export const VALID_REGULATIONS = ["GDPR", "CCPA", "HIPAA", "PIPEDA", "DPDPA", "PIPL"] as const;
 export const VALID_RISK_STATUSES = ["open", "mitigating", "resolved", "accepted"] as const;

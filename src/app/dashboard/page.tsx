@@ -80,15 +80,17 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [today, setToday] = useState("");
 
+  const { data: session, status } = useSession();
+  const isAdmin = session?.user?.role === "admin";
+
   useEffect(() => {
+    if (status !== "authenticated") return;
+
     let cancelled = false;
     async function load() {
       try {
-        const [a, r, act] = await Promise.all([
-          api.getAssessments(),
-          api.getRisks(),
-          api.getActivities(),
-        ]);
+        const [a, r] = await Promise.all([api.getAssessments(), api.getRisks()]);
+        const act = isAdmin ? await api.getActivities() : [];
         if (!cancelled) {
           setAssessments(a);
           setRisks(r);
@@ -103,7 +105,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [status, isAdmin]);
 
   const stats = useMemo(() => {
     const total = assessments.length;
@@ -151,8 +153,6 @@ export default function DashboardPage() {
 
     return { overdue, dueSoon };
   }, [assessments, today]);
-
-  const { data: session } = useSession();
 
   return (
     <div>
@@ -319,26 +319,28 @@ export default function DashboardPage() {
           </Card>
 
           {/* Recent activity */}
-          <Card className="p-5">
-            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Recent Activity</h3>
-            <div className="space-y-4">
-              {recentActivities.map((act) => (
-                <div key={act.id} className="flex gap-3">
-                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                    <Activity className="h-3.5 w-3.5 text-slate-500" />
+          {isAdmin && (
+            <Card className="p-5">
+              <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Recent Activity</h3>
+              <div className="space-y-4">
+                {recentActivities.map((act) => (
+                  <div key={act.id} className="flex gap-3">
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                      <Activity className="h-3.5 w-3.5 text-slate-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-700 dark:text-slate-200">
+                        <span className="font-medium">{act.action}</span> — {act.entity}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {formatDateTime(act.timestamp)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-700 dark:text-slate-200">
-                      <span className="font-medium">{act.action}</span> — {act.entity}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {formatDateTime(act.timestamp)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 

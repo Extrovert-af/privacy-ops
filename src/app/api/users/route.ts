@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
+import { requireSession, isAdmin } from "@/lib/authz";
 import {
   ValidationError,
   VALID_ROLES,
@@ -29,8 +30,18 @@ function generatePassword(): string {
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { session, response } = await requireSession();
+  if (response) return response;
+
+  // Admins get the full directory. Everyone else gets only what assignee
+  // pickers need — no emails, roles or account state.
+  if (!isAdmin(session)) {
+    const basic = await prisma.user.findMany({
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, avatarColor: true },
+    });
+    return NextResponse.json(basic);
+  }
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "asc" },
