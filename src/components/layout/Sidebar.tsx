@@ -12,6 +12,7 @@ import {
   FileText,
   Users,
   Shield,
+  Settings,
   ChevronDown,
   LogOut,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/compliance", label: "Compliance", icon: BarChart3 },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/users", label: "Users & Roles", icon: Users, adminOnly: true },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Sidebar() {

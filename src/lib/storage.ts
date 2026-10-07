@@ -150,6 +150,12 @@ deleteAssessment: (id: string) => request<void>(`/api/assessments/${id}`, { meth
       body: JSON.stringify(updates),
     }),
 
+  changePassword: (id: string, currentPassword: string, newPassword: string) =>
+    request<{ success: boolean }>(`/api/users/${id}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
   getActivities: () => request<ActivityLog[]>("/api/activities"),
 };
 
