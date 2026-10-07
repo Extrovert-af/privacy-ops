@@ -18,6 +18,10 @@ model User {
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
+  emailVerified       Boolean   @default(true)
+  verificationCode    String?
+  verificationExpires DateTime?
+
   createdAssessments   Assessment[] @relation("CreatedBy")
   assignedAssessments  Assessment[] @relation("Assignee")
   risks                Risk[]       @relation("RiskOwner")

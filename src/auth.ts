@@ -66,6 +66,13 @@ export const authConfig = {
           return null;
         }
 
+        // Blocked until the mailbox is confirmed. Deliberately not counted as
+        // a failed attempt, so a real user is not locked out simply for having
+        // skipped verification.
+        if (!user.emailVerified) {
+          return null;
+        }
+
         await clearLoginFailures(ipKey);
         await clearLoginFailures(accountKey);
 

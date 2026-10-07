@@ -25,13 +25,18 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const registered = searchParams.get("registered");
+  const verified = searchParams.get("verified");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success] = useState(
-    registered === "1" ? "Account created successfully. Please sign in." : ""
+    verified === "1"
+      ? "Email verified. You can sign in now."
+      : registered === "1"
+        ? "Account created successfully. Please sign in."
+        : ""
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -146,6 +151,10 @@ function LoginForm() {
               )}
             </button>
           </form>
+
+          <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
+            Just signed up? Enter the code we emailed you before signing in.
+          </p>
 
           <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
             Don&apos;t have an account?{" "}
