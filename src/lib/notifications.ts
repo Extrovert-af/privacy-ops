@@ -15,6 +15,7 @@ export const NOTIFICATION_KINDS = {
   overdue: "deadline_overdue",
   dueSoon: "deadline_due_soon",
   reReviewDue: "re_review_due",
+  assigned: "assigned",
   system: "system",
 } as const;
 

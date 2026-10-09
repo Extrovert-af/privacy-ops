@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
+import { notifyAssignee } from "@/lib/assignment";
 import {
   ValidationError,
   VALID_REGULATIONS,
@@ -172,6 +173,29 @@ export async function POST(request: Request) {
       details: `${assessment.regulation} template`,
     },
   });
+
+  // Someone else's work needs flagging; self-assignment does not.
+  if (assessment.assigneeId !== session.user.id) {
+    await prisma.activityLog.create({
+      data: {
+        action: "Assigned assessment",
+        entity: assessment.title,
+        entityType: "assessment",
+        userId: session.user.id,
+        details: `Assigned to ${assessment.assignee?.name ?? "another user"}`,
+      },
+    });
+
+    await notifyAssignee({
+      assessmentId: assessment.id,
+      assessmentTitle: assessment.title,
+      regulation: assessment.regulation,
+      department: assessment.department,
+      dueDate: assessment.dueDate,
+      assigneeId: assessment.assigneeId,
+      actorName: session.user.name ?? "A team member",
+    });
+  }
 
   return NextResponse.json(serializeAssessment(assessment), { status: 201 });
 }

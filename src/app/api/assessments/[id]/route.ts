@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
 import { serializeAssessment } from "../route";
+import { notifyAssignee } from "@/lib/assignment";
 import { computeReviewDueDate } from "@/lib/deadlines";
 import {
   ValidationError,
@@ -190,6 +191,34 @@ export async function PUT(request: Request, { params }: Params) {
         details: `${parsed.length} responses saved`,
       },
     });
+  }
+
+  const assigneeChanged =
+    data.assigneeId !== undefined && data.assigneeId !== existing.assigneeId;
+
+  if (assigneeChanged) {
+    await prisma.activityLog.create({
+      data: {
+        action: "Assigned assessment",
+        entity: assessment.title,
+        entityType: "assessment",
+        userId: session.user.id,
+        details: `Assigned to ${assessment.assignee?.name ?? "another user"}`,
+      },
+    });
+
+    // Reassigning to yourself is a change of record, not a request for action.
+    if (assessment.assigneeId !== session.user.id) {
+      await notifyAssignee({
+        assessmentId: assessment.id,
+        assessmentTitle: assessment.title,
+        regulation: assessment.regulation,
+        department: assessment.department,
+        dueDate: assessment.dueDate,
+        assigneeId: assessment.assigneeId,
+        actorName: session.user.name ?? "A team member",
+      });
+    }
   }
 
   return NextResponse.json(serializeAssessment(assessment));
