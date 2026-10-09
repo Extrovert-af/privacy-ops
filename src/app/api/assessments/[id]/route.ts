@@ -58,7 +58,40 @@ export async function PUT(request: Request, { params }: Params) {
     if (body.department !== undefined)
       data.department = str(body.department, "Department", { fallback: "Unassigned" });
     if (body.dueDate !== undefined) data.dueDate = isoDate(body.dueDate, "Due date");
-    if (body.assigneeId !== undefined) data.assigneeId = cuid(body.assigneeId, "Assignee");
+    if (body.assigneeId !== undefined) {
+      const nextAssignee = cuid(body.assigneeId, "Assignee");
+
+      if (nextAssignee !== existing.assigneeId) {
+        // Reassignment hands responsibility to someone else, so it is limited
+        // to admins, privacy officers, and whoever created the assessment.
+        const mayReassign =
+          role === "admin" ||
+          role === "privacy_officer" ||
+          existing.createdBy === session.user.id;
+
+        if (!mayReassign) {
+          return NextResponse.json(
+            {
+              error:
+                "Only admins, privacy officers, or the assessment creator can reassign it",
+            },
+            { status: 403 }
+          );
+        }
+
+        const assignee = await prisma.user.findUnique({
+          where: { id: nextAssignee },
+          select: { active: true },
+        });
+
+        if (!assignee) throw new ValidationError("That assignee does not exist");
+        if (!assignee.active) {
+          throw new ValidationError("That assignee's account is deactivated");
+        }
+      }
+
+      data.assigneeId = nextAssignee;
+    }
     if (body.risksIdentified !== undefined)
       data.risksIdentified = int(body.risksIdentified, "Risks identified", {
         min: 0,

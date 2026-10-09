@@ -58,6 +58,7 @@ export const api = {
     department: string;
     dueDate: string;
     risksTotal: number;
+    assigneeId?: string;
   }) =>
     request<Assessment>("/api/assessments", {
       method: "POST",

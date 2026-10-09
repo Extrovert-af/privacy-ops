@@ -8,6 +8,7 @@ import {
   oneOf,
   int,
   isoDate,
+  cuid,
 } from "@/lib/validation";
 
 export type ApiAssessment = {
@@ -124,12 +125,30 @@ export async function POST(request: Request) {
       risksTotal: int(body.risksTotal, "Risk total", { min: 0, max: 10000 }),
     };
 
+    // The creator picks who owns the work; leaving it blank self-assigns.
+    const assigneeId =
+      body.assigneeId === undefined || body.assigneeId === null || body.assigneeId === ""
+        ? session.user.id
+        : cuid(body.assigneeId, "Assignee");
+
+    if (assigneeId !== session.user.id) {
+      const assignee = await prisma.user.findUnique({
+        where: { id: assigneeId },
+        select: { active: true },
+      });
+
+      if (!assignee) throw new ValidationError("That assignee does not exist");
+      if (!assignee.active) {
+        throw new ValidationError("That assignee's account is deactivated");
+      }
+    }
+
     assessment = await prisma.assessment.create({
       data: {
         ...data,
         status: "draft",
         createdBy: session.user.id,
-        assigneeId: session.user.id,
+        assigneeId,
         risksIdentified: 0,
         workflowStage: 1,
         notes: "",

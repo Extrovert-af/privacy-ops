@@ -1,15 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { ArrowLeft, ClipboardCheck, AlertCircle } from "lucide-react";
 import { Card, PageHeader, Button } from "@/components/ui";
 import { regulations } from "@/data/organization";
 import { assessmentTemplates } from "@/data/templates";
 import { api } from "@/lib/storage";
 
+type AssignableUser = { id: string; name: string };
+
 export default function NewAssessmentPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
+  const [users, setUsers] = useState<AssignableUser[]>([]);
+  const [assigneeId, setAssigneeId] = useState("");
   const [selectedRegulation, setSelectedRegulation] = useState<string>("all");
   const [title, setTitle] = useState("");
   const [stakeholder, setStakeholder] = useState("");
@@ -18,6 +24,17 @@ export default function NewAssessmentPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    api
+      .getUsers()
+      .then((list) => setUsers(list))
+      .catch(() => setUsers([]));
+  }, [status]);
+
+  // Default the picker to the signed-in user so the common case is one click.
+  const effectiveAssigneeId = assigneeId || session?.user?.id || "";
 
   const filteredTemplates = assessmentTemplates.filter(
     (t) => selectedRegulation === "all" || t.regulation === selectedRegulation
@@ -39,6 +56,7 @@ export default function NewAssessmentPage() {
         department,
         dueDate: dueDate || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
         risksTotal: template.sections.flatMap((s) => s.questions).length,
+        assigneeId: effectiveAssigneeId || undefined,
       });
       router.push(`/assessments/${created.id}`);
     } catch (e) {
@@ -170,6 +188,24 @@ export default function NewAssessmentPage() {
                   placeholder="e.g., Marketing"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800"
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Assign To</label>
+                <select
+                  value={effectiveAssigneeId}
+                  onChange={(e) => setAssigneeId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800"
+                >
+                  {users.length === 0 && <option value="">Loading people...</option>}
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.id === session?.user?.id ? `${u.name} (me)` : u.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">
+                  They are notified and can complete the assessment from the link.
+                </p>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Due Date</label>
